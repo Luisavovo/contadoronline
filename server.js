@@ -3,21 +3,25 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const multer = require('multer');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Serve os arquivos estáticos (HTML, CSS, JS, etc.)
+// Serve os arquivos estáticos da pasta do projeto (HTML, CSS, JS do frontend)
 app.use(express.static(__dirname));
 
-// Configuração do Banco de Dados PostgreSQL
+// Configuração do Banco de Dados PostgreSQL (usando a URL da Render)
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: process.env.DATABASE_URL || 'postgresql://banco_contador_user:2TcnzLxJl2eUkA4IK5uMFDb4UVVMlXWC@dpg-dal9lkqjnfac73cundjg-a.virginia-postgres.render.com/banco_contador',
     ssl: { rejectUnauthorized: false }
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'sua_chave_secreta_super_segura';
+
+// Configuração do Multer para salvar arquivos PDF direto na memória (para o tipo bytea do Postgres)
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Middleware de Autenticação do Contador
 function verificarTokenContador(req, res, next) {
@@ -35,14 +39,15 @@ function verificarTokenContador(req, res, next) {
 }
 
 // ==========================================
-// ROTAS DE CONTADORES
+// 1. ROTAS DE CONTADORES (Autenticação)
 // ==========================================
 
+// Cadastro de Escritório Contábil
 app.post('/api/contador/cadastro', async (req, res) => {
     try {
         let { nomeEscritorio, email, senha } = req.body;
         if (!nomeEscritorio || !email || !senha) {
-            return res.status(400).json({ erro: 'Preencha todos os campos.' });
+            return res.status(400).json({ erro: 'Preencha todos os campos obrigatórios.' });
         }
 
         email = email.trim().toLowerCase();
@@ -55,16 +60,17 @@ app.post('/api/contador/cadastro', async (req, res) => {
         const senhaHash = await bcrypt.hash(senha, salt);
 
         await pool.query(
-            'INSERT INTO contadores (nomeescritorio, email, senha, senhahash) VALUES ($1, $2, $3, $4)',
+            'INSERT INTO contadores (nomeescritorio, email, senha, senhahash, datacriacao) VALUES ($1, $2, $3, $4, NOW())',
             [nomeEscritorio, email, senhaHash, senhaHash]
         );
 
         res.status(201).json({ mensagem: 'Escritório cadastrado com sucesso!' });
     } catch (erro) {
-        res.status(500).json({ erro: 'Erro interno no servidor: ' + erro.message });
+        res.status(500).json({ erro: 'Erro no servidor: ' + erro.message });
     }
 });
 
+// Login do Contador
 app.post('/api/contador/login', async (req, res) => {
     try {
         let { email, senha } = req.body;
@@ -94,45 +100,19 @@ app.post('/api/contador/login', async (req, res) => {
             nomeEscritorio: contador.nomeescritorio || 'Escritório'
         });
     } catch (erro) {
-        res.status(500).json({ erro: 'Erro interno no servidor: ' + erro.message });
-    }
-});
-
-app.post('/api/contador/esqueci-senha', async (req, res) => {
-    try {
-        let { email, novaSenha } = req.body;
-        if (!email || !novaSenha) {
-            return res.status(400).json({ erro: 'Informe o e-mail e a nova senha.' });
-        }
-
-        email = email.trim().toLowerCase();
-        const salt = await bcrypt.genSalt(10);
-        const senhaHash = await bcrypt.hash(novaSenha, salt);
-
-        const atualizacao = await pool.query(
-            'UPDATE contadores SET senha = $1, senhahash = $2 WHERE LOWER(email) = $3',
-            [senhaHash, senhaHash, email]
-        );
-
-        if (atualizacao.rowCount === 0) {
-            return res.status(404).json({ erro: 'E-mail não encontrado.' });
-        }
-
-        res.json({ mensagem: 'Senha redefinida com sucesso!' });
-    } catch (erro) {
-        res.status(500).json({ erro: 'Erro interno no servidor: ' + erro.message });
+        res.status(500).json({ erro: 'Erro no servidor: ' + erro.message });
     }
 });
 
 // ==========================================
-// ROTAS DE EMPRESAS (CLIENTES DO CONTADOR)
+// 2. ROTAS DE EMPRESAS (Clientes)
 // ==========================================
 
-// Listar empresas do contador logado
+// Listar empresas vinculadas ao contador logado
 app.get('/api/empresas', verificarTokenContador, async (req, res) => {
     try {
         const empresas = await pool.query(
-            'SELECT * FROM empresas WHERE contador_id = $1 ORDER BY datacriacao DESC',
+            'SELECT * FROM empresas WHERE contador_id = $1 OR contadorid = $1 ORDER BY datacriacao DESC',
             [req.contadorId]
         );
         res.json(empresas.rows);
@@ -158,7 +138,6 @@ app.post('/api/cadastrar-empresa', async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const senhaHash = await bcrypt.hash(senha, salt);
 
-        // Se houver um contador autenticado via token, associa a ele, senão salva de forma avulsa
         let contadorId = null;
         const authHeader = req.headers['authorization'];
         if (authHeader) {
@@ -166,13 +145,13 @@ app.post('/api/cadastrar-empresa', async (req, res) => {
                 const token = authHeader.split(' ')[1];
                 const decoded = jwt.verify(token, JWT_SECRET);
                 contadorId = decoded.id;
-            } catch (e) { /* Ignora se for cadastro público */ }
+            } catch (e) { /* Token opcional para cadastro público */ }
         }
 
         await pool.query(
-            `INSERT INTO empresas (cnpj, razaosocial, emailempresa, senha, senhahash, contador_id, datacriacao) 
-             VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-            [cnpjLimpo, razaoSocial, emailEmpresa || '', senhaHash, senhaHash, contadorId]
+            `INSERT INTO empresas (cnpj, razaosocial, emailempresa, senha, senhahash, contador_id, contadorid, datacriacao) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+            [cnpjLimpo, razaoSocial, emailEmpresa || '', senhaHash, senhaHash, contadorId, contadorId]
         );
 
         res.status(201).json({ mensagem: 'Empresa cadastrada com sucesso!' });
@@ -185,7 +164,7 @@ app.post('/api/cadastrar-empresa', async (req, res) => {
 app.delete('/api/empresas/:id', verificarTokenContador, async (req, res) => {
     try {
         const { id } = req.params;
-        await pool.query('DELETE FROM empresas WHERE id = $1 AND contador_id = $2', [id, req.contadorId]);
+        await pool.query('DELETE FROM empresas WHERE id = $1 AND (contador_id = $2 OR contadorid = $2)', [id, req.contadorId]);
         res.json({ mensagem: 'Empresa excluída com sucesso.' });
     } catch (erro) {
         res.status(500).json({ erro: 'Erro ao excluir empresa: ' + erro.message });
@@ -193,13 +172,69 @@ app.delete('/api/empresas/:id', verificarTokenContador, async (req, res) => {
 });
 
 // ==========================================
-// ROTAS DE GUIAS E IMPOSTOS
+// 3. ROTAS DE GUIAS E IMPOSTOS
 // ==========================================
 
-// Listar impostos para a empresa logada (Painel do Cliente)
-app.get('/api/meus-impostos', async (req, res) => {
-    // Implementar a lógica para retornar as guias baseadas na sessão/token da empresa cliente
-    res.json([]);
+// Enviar Guia (PDF) para uma empresa
+app.post('/api/guias', verificarTokenContador, upload.single('arquivo'), async (req, res) => {
+    try {
+        const { cnpj, tipoimposto, competencia, valor, vencimento, pix } = req.body;
+        
+        let arquivoNome = null;
+        let arquivoDados = null;
+        let arquivoTipo = null;
+
+        if (req.file) {
+            arquivoNome = req.file.originalname;
+            arquivoDados = req.file.buffer; // Conteúdo binário do PDF
+            arquivoTipo = req.file.mimetype;
+        }
+
+        const cnpjLimpo = cnpj ? cnpj.replace(/\D/g, '') : '';
+
+        await pool.query(
+            `INSERT INTO guias (cnpj, tipoimposto, competencia, valor, vencimento, pix, arquivonome, arquivodados, arquivotipo, datacriacao) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
+            [cnpjLimpo, tipoimposto, competencia, valor || 0, vencimento || null, pix || '', arquivoNome, arquivoDados, arquivoTipo]
+        );
+
+        res.status(201).json({ mensagem: 'Guia cadastrada e enviada com sucesso!' });
+    } catch (erro) {
+        res.status(500).json({ erro: 'Erro ao salvar guia: ' + erro.message });
+    }
+});
+
+// Listar guias de um CNPJ específico (Painel do Cliente)
+app.get('/api/guias/:cnpj', async (req, res) => {
+    try {
+        const cnpjLimpo = req.params.cnpj.replace(/\D/g, '');
+        const guias = await pool.query(
+            'SELECT id, cnpj, tipoimposto, competencia, valor, vencimento, pix, arquivonome, arquivotipo, datacriacao FROM guias WHERE cnpj = $1 ORDER BY datacriacao DESC',
+            [cnpjLimpo]
+        );
+        res.json(guias.rows);
+    } catch (erro) {
+        res.status(500).json({ erro: 'Erro ao buscar guias: ' + erro.message });
+    }
+});
+
+// Baixar o PDF da Guia salvo no banco de dados
+app.get('/api/guias/download/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const resultado = await pool.query('SELECT arquivonome, arquivodados, arquivotipo FROM guias WHERE id = $1', [id]);
+        
+        if (resultado.rows.length === 0 || !resultado.rows[0].arquivodados) {
+            return res.status(404).json({ erro: 'Arquivo PDF não encontrado.' });
+        }
+
+        const guia = resultado.rows[0];
+        res.setHeader('Content-Type', guia.arquivotipo || 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${guia.arquivonome || 'guia.pdf'}"`);
+        res.send(guia.arquivodados);
+    } catch (erro) {
+        res.status(500).json({ erro: 'Erro ao realizar download: ' + erro.message });
+    }
 });
 
 // Inicialização do Servidor
