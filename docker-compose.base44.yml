@@ -32,7 +32,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: sh -c "npm install && npx --yes nodemon server.js"
+    command: sh -c "npm install && npx --yes nodemon --ignore node_modules --ignore package.json --ignore package-lock.json server.js"
 
 volumes:
   db_data:

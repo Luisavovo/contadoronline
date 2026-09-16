@@ -55,4 +55,7 @@ Contador routes are protected by `autenticarContador` (JWT from `Authorization: 
   keeps SSL on by default — the code checks `process.env.DB_SSL`).
 - `nodemon` is used for live reload of `server.js` changes. HTML changes are picked up
   on browser refresh (served statically, no build step).
+- `nodemon` ignores `package.json` / `package-lock.json` so that a dependency edit does not
+  hot-restart `server.js` before the module exists. After changing dependencies, run
+  `docker compose -f docker-compose.base44.yml restart app` to reinstall them.
 - `cors()` is enabled globally — not strictly needed (single-origin) but harmless.
