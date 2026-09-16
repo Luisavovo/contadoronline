@@ -42,7 +42,6 @@ function verificarTokenContador(req, res, next) {
 // 1. ROTAS DE CONTADORES (Autenticação)
 // ==========================================
 
-// Cadastro de Escritório Contábil
 app.post('/api/contador/cadastro', async (req, res) => {
     try {
         let { nomeEscritorio, email, senha } = req.body;
@@ -70,7 +69,6 @@ app.post('/api/contador/cadastro', async (req, res) => {
     }
 });
 
-// Login do Contador
 app.post('/api/contador/login', async (req, res) => {
     try {
         let { email, senha } = req.body;
@@ -108,7 +106,6 @@ app.post('/api/contador/login', async (req, res) => {
 // 2. ROTAS DE EMPRESAS (Clientes)
 // ==========================================
 
-// Listar empresas vinculadas ao contador logado
 app.get('/api/empresas', verificarTokenContador, async (req, res) => {
     try {
         const empresas = await pool.query(
@@ -121,7 +118,6 @@ app.get('/api/empresas', verificarTokenContador, async (req, res) => {
     }
 });
 
-// Cadastrar nova empresa cliente
 app.post('/api/cadastrar-empresa', async (req, res) => {
     try {
         let { cnpj, razaoSocial, emailEmpresa, senha } = req.body;
@@ -160,7 +156,6 @@ app.post('/api/cadastrar-empresa', async (req, res) => {
     }
 });
 
-// Excluir empresa
 app.delete('/api/empresas/:id', verificarTokenContador, async (req, res) => {
     try {
         const { id } = req.params;
@@ -175,7 +170,7 @@ app.delete('/api/empresas/:id', verificarTokenContador, async (req, res) => {
 // 3. ROTAS DE GUIAS E IMPOSTOS
 // ==========================================
 
-// Enviar Guia (PDF) para uma empresa
+// Enviar Guia (PDF) para uma empresa (Usando 'arquivo' para coincidir com o front-end)
 app.post('/api/guias', verificarTokenContador, upload.single('arquivo'), async (req, res) => {
     try {
         const { cnpj, tipoimposto, competencia, valor, vencimento, pix } = req.body;
@@ -204,7 +199,6 @@ app.post('/api/guias', verificarTokenContador, upload.single('arquivo'), async (
     }
 });
 
-// Listar guias de um CNPJ específico (Painel do Cliente)
 app.get('/api/guias/:cnpj', async (req, res) => {
     try {
         const cnpjLimpo = req.params.cnpj.replace(/\D/g, '');
@@ -218,7 +212,6 @@ app.get('/api/guias/:cnpj', async (req, res) => {
     }
 });
 
-// Baixar o PDF da Guia salvo no banco de dados
 app.get('/api/guias/download/:id', async (req, res) => {
     try {
         const { id } = req.params;
