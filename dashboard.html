@@ -110,7 +110,7 @@
         const empresa = JSON.parse(localStorage.getItem('empresa'));
 
         if (!token || !empresa) {
-            window.location.href = 'index.html';
+            window.location.href = 'cliente.html';
         } else {
             document.getElementById('empresaNome').textContent = empresa.razaoSocial || 'Minha Empresa';
             document.getElementById('welcomeTitle').textContent = `Bem-vindo, ${empresa.razaoSocial || 'Cliente'}`;
@@ -155,17 +155,19 @@
                     // Formatação de Data e Moeda corretas baseadas no banco
                     const vencimento = item.datavencimento ? new Date(item.datavencimento).toLocaleDateString('pt-BR') : '--/--/----';
                     const valorFormatted = Number(item.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                    const pago = /pago/i.test(item.statuspagamento || '');
+                    const status = item.statuspagamento || 'Pendente';
                     
                     tr.innerHTML = `
                         <td><strong>${item.tipoimposto || 'Imposto'}</strong></td>
                         <td>${item.mesreferencia || '--'}</td>
                         <td>${vencimento}</td>
                         <td><strong>${valorFormatted}</strong></td>
-                        <td><span class="badge badge-pendente">${item.statuspagamento || 'PENDENTE'}</span></td>
+                        <td><span class="badge ${pago ? 'badge-pago' : 'badge-pendente'}">${status}</span></td>
                         <td>
                             <div class="action-buttons">
                                 ${item.codigopix ? `<button class="btn-action btn-pix" onclick="copiarPix('${item.codigopix}')"><i data-lucide="qr-code" style="width:14px;"></i> Copiar PIX</button>` : ''}
-                                ${item.caminhopdf ? `<a href="/${item.caminhopdf}" target="_blank" class="btn-action btn-pdf"><i data-lucide="download" style="width:14px;"></i> PDF</a>` : ''}
+                                ${item.pdfurl ? `<a href="${item.pdfurl}" target="_blank" class="btn-action btn-pdf"><i data-lucide="download" style="width:14px;"></i> PDF</a>` : ''}
                             </div>
                         </td>
                     `;
@@ -188,7 +190,7 @@
 
         function logout() {
             localStorage.clear();
-            window.location.href = 'index.html';
+            window.location.href = 'cliente.html';
         }
     </script>
 </body>

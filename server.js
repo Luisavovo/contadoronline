@@ -45,16 +45,34 @@ function autenticarContador(req, res, next) {
 }
 
 // ==========================================
-// CONFIGURAÇÃO DE UPLOAD DAS GUIAS (PDF)
+// MIDDLEWARE DE AUTENTICAÇÃO DA EMPRESA (CLIENTE)
 // ==========================================
-const pastaGuias = path.join(__dirname, 'uploads', 'guias');
-fs.mkdirSync(pastaGuias, { recursive: true });
+function autenticarEmpresa(req, res, next) {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
+    if (!token) {
+        return res.status(401).json({ erro: 'Sessão não informada. Faça login novamente.' });
+    }
+
+    try {
+        const dados = jwt.verify(token, JWT_SECRET);
+        if (dados.tipo !== 'empresa') {
+            return res.status(403).json({ erro: 'Acesso restrito à área do cliente.' });
+        }
+        req.empresa = dados;
+        next();
+    } catch (erro) {
+        return res.status(401).json({ erro: 'Sessão inválida ou expirada. Faça login novamente.' });
+    }
+}
+
+// ==========================================
+// CONFIGURAÇÃO DE UPLOAD DAS GUIAS (PDF)
+// O PDF é guardado no próprio banco (coluna arquivodados), junto com a guia
+// ==========================================
 const upload = multer({
-    storage: multer.diskStorage({
-        destination: (req, file, cb) => cb(null, pastaGuias),
-        filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_'))
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 }
 });
 
@@ -127,6 +145,59 @@ app.post('/api/contador/login', async (req, res) => {
             nomeEscritorio: contador.nomeescritorio || 'Escritório',
             contador: {
                 nomeEscritorio: contador.nomeescritorio || 'Escritório'
+            }
+        });
+    } catch (erro) {
+        res.status(500).json({ erro: 'Erro interno no servidor: ' + erro.message });
+    }
+});
+
+// ==========================================
+// ROTA DE LOGIN DA EMPRESA (CLIENTE)
+// Aceita o CNPJ (com ou sem pontuação) ou o e-mail cadastrado pela empresa
+// ==========================================
+app.post('/api/empresa/login', async (req, res) => {
+    try {
+        const { identificador, senha } = req.body;
+        if (!identificador || !senha) {
+            return res.status(400).json({ erro: 'Informe o CNPJ (ou e-mail) e a senha.' });
+        }
+
+        const cnpjLimpo = String(identificador).replace(/\D/g, '');
+
+        const resultado = await pool.query(
+            `SELECT * FROM empresas
+             WHERE ($1 <> '' AND REGEXP_REPLACE(COALESCE(cnpj, ''), '\\D', '', 'g') = $1)
+                OR LOWER(COALESCE(emailempresa, '')) = $2
+             ORDER BY id
+             LIMIT 1`,
+            [cnpjLimpo, String(identificador).trim().toLowerCase()]
+        );
+
+        if (resultado.rows.length === 0) {
+            return res.status(400).json({ erro: 'CNPJ/e-mail ou senha incorretos.' });
+        }
+
+        const empresa = resultado.rows[0];
+        const senhaArmazenada = empresa.senhahash || empresa.senha;
+
+        if (!senhaArmazenada || !(await bcrypt.compare(senha, senhaArmazenada))) {
+            return res.status(400).json({ erro: 'CNPJ/e-mail ou senha incorretos.' });
+        }
+
+        const token = jwt.sign(
+            { id: empresa.id, cnpj: empresa.cnpj, razaoSocial: empresa.razaosocial, tipo: 'empresa' },
+            JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        res.json({
+            mensagem: 'Login realizado com sucesso!',
+            token: token,
+            empresa: {
+                id: empresa.id,
+                cnpj: empresa.cnpj,
+                razaoSocial: empresa.razaosocial
             }
         });
     } catch (erro) {
@@ -237,7 +308,9 @@ app.delete('/api/empresas/:id', autenticarContador, async (req, res) => {
             return res.status(404).json({ erro: 'Empresa não encontrada.' });
         }
 
-        await pool.query('DELETE FROM guias WHERE empresa_cnpj = $1', [empresa.rows[0].cnpj]);
+        const cnpjLimpo = String(empresa.rows[0].cnpj || '').replace(/\D/g, '');
+        await pool.query("DELETE FROM guias WHERE REGEXP_REPLACE(COALESCE(cnpj, ''), '\\D', '', 'g') = $1", [cnpjLimpo]);
+        await pool.query('DELETE FROM tributos WHERE empresaid = $1', [req.params.id]);
         await pool.query('DELETE FROM empresas WHERE id = $1', [req.params.id]);
 
         res.json({ mensagem: 'Empresa excluída com sucesso!' });
@@ -251,22 +324,96 @@ app.delete('/api/empresas/:id', autenticarContador, async (req, res) => {
 // ==========================================
 app.post('/api/guias', autenticarContador, upload.single('arquivoPdf'), async (req, res) => {
     try {
-        let { cnpj, tipoImposto, competencia, valor, vencimento, pix } = req.body;
+        const { cnpj, tipoImposto, competencia, valor, vencimento, pix } = req.body;
         if (!cnpj || !tipoImposto || !competencia || !valor || !vencimento || !req.file) {
             return res.status(400).json({ erro: 'Preencha todos os campos e anexe o arquivo PDF.' });
         }
 
-        const cnpjLimpo = cnpj.replace(/\D/g, '');
-        const caminhoPdf = 'uploads/guias/' + req.file.filename;
-
         await pool.query(
-            'INSERT INTO guias (empresa_cnpj, tipoimposto, mesreferencia, valor, datavencimento, codigopix, caminhopdf) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-            [cnpjLimpo, tipoImposto, competencia, valor, vencimento, pix || null, caminhoPdf]
+            `INSERT INTO guias (cnpj, tipoimposto, competencia, valor, vencimento, pix, arquivonome, arquivodados, arquivotipo)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            [
+                cnpj,
+                tipoImposto,
+                competencia,
+                valor,
+                vencimento,
+                pix || null,
+                req.file.originalname,
+                req.file.buffer,
+                req.file.mimetype
+            ]
         );
 
         res.status(201).json({ mensagem: 'Guia cadastrada e enviada com sucesso!' });
     } catch (erro) {
         res.status(500).json({ erro: 'Erro ao cadastrar guia: ' + erro.message });
+    }
+});
+
+// ==========================================
+// ROTA: GUIAS E TRIBUTOS DO CLIENTE LOGADO
+// ==========================================
+app.get('/api/meus-impostos', autenticarEmpresa, async (req, res) => {
+    try {
+        const cnpjLimpo = String(req.empresa.cnpj || '').replace(/\D/g, '');
+
+        const guias = await pool.query(
+            `SELECT id, tipoimposto, competencia AS mesreferencia, valor, vencimento AS datavencimento,
+                    NULLIF(pix, '') AS codigopix, 'Pendente' AS statuspagamento
+             FROM guias
+             WHERE REGEXP_REPLACE(COALESCE(cnpj, ''), '\\D', '', 'g') = $1
+             ORDER BY vencimento DESC NULLS LAST, id DESC`,
+            [cnpjLimpo]
+        );
+
+        const tributos = await pool.query(
+            `SELECT id, tipoimposto, mesreferencia, valor, datavencimento, NULLIF(codigopix, '') AS codigopix,
+                    caminhopdf, statuspagamento
+             FROM tributos
+             WHERE empresaid = $1
+             ORDER BY datavencimento DESC NULLS LAST, id DESC`,
+            [req.empresa.id]
+        );
+
+        const lista = [
+            ...guias.rows.map(g => ({ ...g, pdfurl: `/api/guias/${g.id}/pdf` })),
+            ...tributos.rows.map(t => {
+                // O PDF dos tributos fica em disco; só oferece o link se o arquivo existir aqui
+                const caminho = t.caminhopdf ? path.join(__dirname, t.caminhopdf) : null;
+                return { ...t, pdfurl: caminho && fs.existsSync(caminho) ? `/${t.caminhopdf}` : null };
+            })
+        ];
+
+        res.json(lista);
+    } catch (erro) {
+        res.status(500).json({ erro: 'Erro ao carregar seus impostos: ' + erro.message });
+    }
+});
+
+// ==========================================
+// ROTA: BAIXAR O PDF DA GUIA (CLIENTE LOGADO)
+// ==========================================
+app.get('/api/guias/:id/pdf', autenticarEmpresa, async (req, res) => {
+    try {
+        const resultado = await pool.query(
+            `SELECT arquivonome, arquivodados, arquivotipo
+             FROM guias g
+             WHERE g.id = $1
+               AND REGEXP_REPLACE(COALESCE(g.cnpj, ''), '\\D', '', 'g') = $2`,
+            [req.params.id, String(req.empresa.cnpj || '').replace(/\D/g, '')]
+        );
+
+        if (resultado.rows.length === 0 || !resultado.rows[0].arquivodados) {
+            return res.status(404).json({ erro: 'Arquivo não encontrado.' });
+        }
+
+        const { arquivonome, arquivodados, arquivotipo } = resultado.rows[0];
+        res.setHeader('Content-Type', arquivotipo || 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${arquivonome || 'guia.pdf'}"`);
+        res.send(arquivodados);
+    } catch (erro) {
+        res.status(500).json({ erro: 'Erro ao abrir o PDF: ' + erro.message });
     }
 });
 

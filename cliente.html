@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Área do Cliente - Seu Contador Online</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8">
+
+        <!-- Cabeçalho -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-emerald-600/10 border border-emerald-500/20 text-emerald-400 mb-4 text-2xl font-bold">
+                🏢
+            </div>
+            <h1 class="text-2xl font-bold tracking-tight text-white">Área do Cliente</h1>
+            <p class="text-sm text-slate-400 mt-1">Acesse as guias e impostos da sua empresa</p>
+        </div>
+
+        <!-- Alerta de Erro -->
+        <div id="mensagem-alerta" class="hidden mb-6 p-3 rounded-lg text-sm font-medium"></div>
+
+        <!-- Formulário de Login -->
+        <form id="form-login" class="space-y-4">
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">CNPJ ou E-mail da Empresa</label>
+                <input type="text" id="login-identificador" required autocomplete="username" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-colors" placeholder="00.000.000/0001-00">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Senha</label>
+                <input type="password" id="login-senha" required autocomplete="current-password" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-colors" placeholder="••••••••">
+            </div>
+
+            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 rounded-lg transition-colors shadow-lg shadow-emerald-600/20">
+                Entrar
+            </button>
+        </form>
+
+        <p class="mt-6 text-xs text-slate-500 text-center">
+            A senha é definida pelo seu contador no momento do cadastro da empresa.
+        </p>
+
+        <div class="mt-8 pt-6 border-t border-slate-800 text-center space-y-2">
+            <div>
+                <a href="index.html" class="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors">Sou contador — acessar o painel administrativo</a>
+            </div>
+            <div>
+                <a href="index.html" class="text-xs text-slate-500 hover:text-slate-400 transition-colors">← Voltar para a Página Inicial</a>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function mostrarAlerta(texto) {
+            const alerta = document.getElementById('mensagem-alerta');
+            alerta.textContent = texto;
+            alerta.className = 'mb-6 p-3 rounded-lg text-sm font-medium bg-red-500/10 border border-red-500/20 text-red-400';
+            alerta.classList.remove('hidden');
+        }
+
+        document.getElementById('form-login').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const identificador = document.getElementById('login-identificador').value;
+            const senha = document.getElementById('login-senha').value;
+
+            try {
+                const resposta = await fetch('/api/empresa/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identificador, senha })
+                });
+
+                const dados = await resposta.json();
+                if (!resposta.ok) throw new Error(dados.erro || 'Erro ao fazer login.');
+
+                localStorage.setItem('token', dados.token);
+                localStorage.setItem('empresa', JSON.stringify(dados.empresa));
+                window.location.href = 'dashboard.html';
+            } catch (erro) {
+                mostrarAlerta(erro.message);
+            }
+        });
+    </script>
+</body>
+</html>
