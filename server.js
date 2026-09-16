@@ -14,7 +14,7 @@ app.use(express.static(__dirname));
 // Configuração do Banco de Dados PostgreSQL
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false }
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'sua_chave_secreta_super_segura';
