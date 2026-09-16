@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Guias - Painel Administrativo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+
+    <!-- Topo / Header -->
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-lg">
+                    📁
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-white tracking-tight">Gerenciamento de Guias</h1>
+                    <p id="cnpj-empresa-topo" class="text-xs font-semibold text-yellow-400 mt-0.5">Carregando empresa...</p>
+                </div>
+            </div>
+            
+            <a href="admin.html" class="flex items-center space-x-2 px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium transition-colors border border-slate-700">
+                <span>← Voltar ao Painel</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- Conteúdo Principal -->
+    <main class="max-w-4xl mx-auto px-6 py-10">
+        
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-xl">
+            <h2 class="text-xl font-bold text-white mb-2">Vincular Nova Guia</h2>
+            <p class="text-sm text-slate-400 mb-6">Envie o arquivo PDF da guia e preencha os dados de cobrança para o cliente.</p>
+
+            <div id="mensagem-alerta" class="hidden mb-6 p-4 rounded-xl text-sm"></div>
+
+            <form id="form-upload-guia" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Tipo de Imposto</label>
+                        <select id="tipoImposto" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                            <option value="DAS">DAS (Simples Nacional)</option>
+                            <option value="DARF">DARF</option>
+                            <option value="GPS">GPS</option>
+                            <option value="ISS">ISS</option>
+                            <option value="Outros">Outros</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Competência (Mês/Ano)</label>
+                        <input type="text" id="competencia" required placeholder="Ex: 10/2026" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Valor do Imposto (R$)</label>
+                        <!-- Campo com formatação automática de moeda (ex: 15.336,02) -->
+                        <input type="text" id="valor" required placeholder="Ex: 15336,02 ou 15.336,02" oninput="mascaraMoeda(this)" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Data de Vencimento</label>
+                        <input type="date" id="vencimento" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">PIX Copia e Cola (Opcional)</label>
+                    <textarea id="pix" rows="2" placeholder="00020126360014BR.GOV.BCB.PIX..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono text-xs"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Arquivo da Guia (PDF)</label>
+                    <input type="file" id="arquivoPdf" accept="application/pdf" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer">
+                </div>
+
+                <div class="flex justify-end pt-4 border-t border-slate-800">
+                    <button type="submit" id="btn-enviar" class="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-colors shadow-lg shadow-blue-600/25">
+                        Enviar e Vincular Guia
+                    </button>
+                </div>
+            </form>
+        </div>
+
+    </main>
+
+    <script>
+        const token = localStorage.getItem('tokenContador');
+        const urlParams = new URLSearchParams(window.location.search);
+        const cnpjEmpresa = urlParams.get('cnpj');
+
+        if (!token || !cnpjEmpresa) {
+            window.location.href = 'admin.html';
+        }
+
+        document.getElementById('cnpj-empresa-topo').textContent = `Empresa CNPJ: ${cnpjEmpresa}`;
+
+        // Função de máscara monetária para aceitar pontos de milhar e vírgula decimal
+        function mascaraMoeda(campo) {
+            let valor = campo.value.replace(/\D/g, ""); // Remove tudo que não for número
+            if (valor === "") {
+                campo.value = "";
+                return;
+            }
+            valor = (parseInt(valor, 10) / 100).toFixed(2) + ""; // Transforma em centavos
+            valor = valor.replace(".", ","); // Troca ponto decimal por vírgula
+            valor = valor.replace(/\B(?=(\d{3})+(?!\d))/g, "."); // Adiciona o ponto de milhar
+            campo.value = valor;
+        }
+
+        document.getElementById('form-upload-guia').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btnEnviar = document.getElementById('btn-enviar');
+            const alerta = document.getElementById('mensagem-alerta');
+
+            btnEnviar.textContent = 'Enviando arquivo...';
+            btnEnviar.disabled = true;
+
+            // Pega o valor formatado (ex: 15.336,02) e converte para o formato do banco (15336.02)
+            let valorDigitado = document.getElementById('valor').value;
+            let valorBanco = valorDigitado.replace(/\./g, '').replace(',', '.');
+
+            const formData = new FormData();
+            formData.append('cnpj', cnpjEmpresa);
+            formData.append('tipoImposto', document.getElementById('tipoImposto').value);
+            formData.append('competencia', document.getElementById('competencia').value);
+            formData.append('valor', valorBanco);
+            formData.append('vencimento', document.getElementById('vencimento').value);
+            formData.append('pix', document.getElementById('pix').value);
+            formData.append('arquivoPdf', document.getElementById('arquivoPdf').files[0]);
+
+            try {
+                const resposta = await fetch('/api/guias', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const resultado = await resposta.json();
+
+                if (!resposta.ok) {
+                    throw new Error(resultado.erro || 'Erro ao enviar guia.');
+                }
+
+                alerta.textContent = 'Guia cadastrada e enviada com sucesso!';
+                alerta.className = 'mb-6 p-4 rounded-xl text-sm bg-emerald-500/10 border border-emerald-500/20 text-emerald-400';
+                alerta.classList.remove('hidden');
+
+                document.getElementById('form-upload-guia').reset();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            } catch (erro) {
+                alerta.textContent = erro.message;
+                alerta.className = 'mb-6 p-4 rounded-xl text-sm bg-red-500/10 border border-red-500/20 text-red-400';
+                alerta.classList.remove('hidden');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } finally {
+                btnEnviar.textContent = 'Enviar e Vincular Guia';
+                btnEnviar.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
