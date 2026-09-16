@@ -36,17 +36,19 @@ docker compose -f docker-compose.base44.yml up -d --build
 - `empresas` — client companies
 - `guias` — tax guide records (PDFs, values, PIX codes)
 
-## ⚠️ Missing API endpoints
-`server.js` only implements three routes (`/api/contador/cadastro`, `/api/contador/login`,
-`/api/contador/esqueci-senha`). The frontend pages also call these endpoints that are **not
-yet implemented** in the server:
-- `GET /api/empresas` — list companies for logged-in contador
-- `POST /api/cadastrar-empresa` — register a company
-- `DELETE /api/empresas/:id` — delete a company
-- `POST /api/guias` — upload a tax guide PDF (needs multer)
-- `GET /api/meus-impostos` — list guides for a client company
+## API routes (server.js)
+- `POST /api/contador/cadastro` / `login` / `esqueci-senha` — accountant auth
+- `GET /api/empresas` — list companies for the logged-in contador (Bearer token)
+- `POST /api/cadastrar-empresa` — register a company (token optional; used by panel + self-signup)
+- `DELETE /api/empresas/:id` — delete a company and its guias (Bearer token)
+- `POST /api/guias` — upload a tax guide PDF, multipart field `arquivoPdf` (Bearer token)
 
-These pages will render but their data calls will 404 until the endpoints are added.
+Contador routes are protected by `autenticarContador` (JWT from `Authorization: Bearer`).
+
+## ⚠️ Still not implemented
+- `GET /api/meus-impostos` — the client (empresa) dashboard `dashboard.html` expects this, but
+  there is **no client login route** that issues the `token`/`empresa` values it reads from
+  localStorage, so that page is unreachable. Needs a client auth flow before it can work.
 
 ## Dev notes
 - `DB_SSL=false` is set in compose to disable SSL for the local PostgreSQL (production
