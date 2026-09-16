@@ -4,6 +4,11 @@
   "startCommand": "docker compose -f docker-compose.base44.yml up -d",
   "secrets": [
     {
+      "name": "DATABASE_URL",
+      "description": "PostgreSQL connection string. Falls back to the local compose database; set it to connect the app to an external database (e.g. your Render PostgreSQL). Use Render's External Database URL.",
+      "requiredAtBoot": false
+    },
+    {
       "name": "JWT_SECRET",
       "description": "Signing secret for JWT auth tokens. A development placeholder was generated; replace with your own for production.",
       "requiredAtBoot": false,

@@ -51,8 +51,12 @@ Contador routes are protected by `autenticarContador` (JWT from `Authorization: 
   localStorage, so that page is unreachable. Needs a client auth flow before it can work.
 
 ## Dev notes
-- `DB_SSL=false` is set in compose to disable SSL for the local PostgreSQL (production
-  keeps SSL on by default — the code checks `process.env.DB_SSL`).
+- `DATABASE_URL` defaults to the local compose PostgreSQL via `.env.base44-defaults`, which is
+  listed FIRST in the app's `env_file` so a platform secret in `/run/base44/app.env` (listed
+  last) overrides it. To use an external database (e.g. Render), set the `DATABASE_URL` secret
+  to Render's **External Database URL** — an Internal URL is only reachable from Render itself.
+- SSL is auto-detected in `server.js`: local hosts (`db` / `localhost` / `127.0.0.1`) connect
+  without SSL, external hosts connect with SSL (`rejectUnauthorized: false`, required by Render).
 - `nodemon` is used for live reload of `server.js` changes. HTML changes are picked up
   on browser refresh (served statically, no build step).
 - `nodemon` ignores `package.json` / `package-lock.json` so that a dependency edit does not

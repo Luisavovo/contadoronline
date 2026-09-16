@@ -15,9 +15,12 @@ app.use(cors());
 app.use(express.static(__dirname));
 
 // Configuração do Banco de Dados PostgreSQL
+const DATABASE_URL = process.env.DATABASE_URL;
+// Bancos locais (compose) não usam SSL; bancos externos (ex: Render) exigem SSL
+const bancoLocal = /@(db|localhost|127\.0\.0\.1)[:/]/.test(DATABASE_URL || '');
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false }
+    connectionString: DATABASE_URL,
+    ssl: bancoLocal ? false : { rejectUnauthorized: false }
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'sua_chave_secreta_super_segura';

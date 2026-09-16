@@ -24,10 +24,9 @@ services:
       - "3000:3000"
     environment:
       - PORT=3000
-      - DATABASE_URL=postgresql://contador:contador_pass@db:5432/contadoronline
-      - DB_SSL=false
       - BASE44_PUBLIC_HOST_SUFFIX=${BASE44_PUBLIC_HOST_SUFFIX}
     env_file:
+      - ./.env.base44-defaults
       - /run/base44/app.env
     depends_on:
       db:
