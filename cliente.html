@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Área do Cliente - Acesso da Empresa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8">
+        
+        <!-- Cabeçalho -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-purple-600/10 border border-purple-500/20 text-purple-400 mb-4 text-2xl font-bold">
+                🏢
+            </div>
+            <h1 class="text-2xl font-bold tracking-tight text-white">Área do Cliente</h1>
+            <p class="text-sm text-slate-400 mt-1">Entre com o CNPJ e sua senha para ver suas guias</p>
+        </div>
+
+        <!-- Alerta de Erro / Sucesso -->
+        <div id="mensagem-alerta" class="hidden mb-6 p-3 rounded-lg text-sm font-medium"></div>
+
+        <!-- Formulário de Login do Cliente -->
+        <form id="form-login-cliente" class="space-y-4">
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">CNPJ da Empresa</label>
+                <input type="text" id="cliente-cnpj" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 transition-colors" placeholder="Digite apenas os números">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Senha (Provisória ou Atual)</label>
+                <input type="password" id="cliente-senha" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 transition-colors" placeholder="••••••••">
+            </div>
+
+            <button type="submit" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-3 rounded-lg transition-colors shadow-lg shadow-purple-600/20">
+                Entrar no Painel
+            </button>
+        </form>
+
+        <div class="mt-8 pt-6 border-t border-slate-800 text-center">
+            <a href="index.html" class="text-xs text-slate-500 hover:text-slate-400 transition-colors">← Voltar para a Página Inicial / Contador</a>
+        </div>
+
+    </div>
+
+    <script>
+        function mostrarAlerta(texto, tipo) {
+            const alerta = document.getElementById('mensagem-alerta');
+            alerta.textContent = texto;
+            alerta.classList.remove('hidden', 'bg-red-500/10', 'border-red-500/20', 'text-red-400', 'bg-emerald-500/10', 'border-emerald-500/20', 'text-emerald-400');
+            
+            if (tipo === 'erro') {
+                alerta.classList.add('bg-red-500/10', 'border', 'border-red-500/20', 'text-red-400');
+            } else {
+                alerta.classList.add('bg-emerald-500/10', 'border', 'border-emerald-500/20', 'text-emerald-400');
+            }
+        }
+
+        document.getElementById('form-login-cliente').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const cnpj = document.getElementById('cliente-cnpj').value.replace(/\D/g, '');
+            const senha = document.getElementById('cliente-senha').value;
+
+            try {
+                const resposta = await fetch('/api/cliente/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cnpj, senha })
+                });
+
+                const dados = await resposta.json();
+                if (!resposta.ok) throw new Error(dados.erro || 'Erro ao fazer login como cliente.');
+
+                localStorage.setItem('tokenCliente', dados.token);
+                localStorage.setItem('cnpjCliente', cnpj);
+                localStorage.setItem('primeiroAcesso', dados.primeiroAcesso);
+
+                window.location.href = 'dashboard.html';
+            } catch (erro) {
+                mostrarAlerta(erro.message, 'erro');
+            }
+        });
+    </script>
+</body>
+</html>
