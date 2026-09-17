@@ -12,13 +12,58 @@ app.use(cors());
 // Serve os arquivos estáticos da pasta do projeto (HTML, CSS, JS do frontend)
 app.use(express.static(__dirname));
 
-// Configuração do Banco de Dados PostgreSQL (usando a URL da Render)
+// Configuração do Banco de Dados PostgreSQL (usando a URL nova)
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://coontadoronnline_user:7rpGNrhb0DGachE29ibe9q5mNESBQnh4@dpg-daljnhm5vjqs73fl8ep0-a/coontadoronnline',
     ssl: { rejectUnauthorized: false }
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'sua_chave_secreta_super_segura';
+
+// Função para criar as tabelas automaticamente caso elas não existam no banco novo
+async function criarTabelasAutomaticamente() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS contadores (
+                id SERIAL PRIMARY KEY,
+                nomeescritorio VARCHAR(255),
+                email VARCHAR(255) UNIQUE NOT NULL,
+                senha VARCHAR(255),
+                senhahash VARCHAR(255),
+                datacriacao TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS empresas (
+                id SERIAL PRIMARY KEY,
+                cnpj VARCHAR(20) UNIQUE NOT NULL,
+                razaosocial VARCHAR(255) NOT NULL,
+                emailempresa VARCHAR(255),
+                senha VARCHAR(255),
+                senhahash VARCHAR(255),
+                contador_id INTEGER,
+                contadorid INTEGER,
+                datacriacao TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS guias (
+                id SERIAL PRIMARY KEY,
+                cnpj VARCHAR(20) NOT NULL,
+                tipoimposto VARCHAR(50),
+                competencia VARCHAR(20),
+                valor NUMERIC(12, 2),
+                vencimento DATE,
+                pix TEXT,
+                arquivonome VARCHAR(255),
+                arquivodados BYTEA,
+                arquivotipo VARCHAR(100),
+                datacriacao TIMESTAMP DEFAULT NOW()
+            );
+        `);
+        console.log("✅ Tabelas verificadas/criadas com sucesso no banco de dados!");
+    } catch (err) {
+        console.error("❌ Erro ao criar tabelas automaticamente:", err.message);
+    }
+}
 
 // Configuração do Multer para salvar arquivos PDF direto na memória (para o tipo bytea do Postgres)
 const upload = multer({ storage: multer.memoryStorage() });
@@ -170,7 +215,6 @@ app.delete('/api/empresas/:id', verificarTokenContador, async (req, res) => {
 // 3. ROTAS DE GUIAS E IMPOSTOS
 // ==========================================
 
-// Enviar Guia (PDF) para uma empresa (Usando 'arquivo' para coincidir com o front-end)
 app.post('/api/guias', verificarTokenContador, upload.single('arquivo'), async (req, res) => {
     try {
         const { cnpj, tipoimposto, competencia, valor, vencimento, pix } = req.body;
@@ -181,7 +225,7 @@ app.post('/api/guias', verificarTokenContador, upload.single('arquivo'), async (
 
         if (req.file) {
             arquivoNome = req.file.originalname;
-            arquivoDados = req.file.buffer; // Conteúdo binário do PDF
+            arquivoDados = req.file.buffer;
             arquivoTipo = req.file.mimetype;
         }
 
@@ -232,6 +276,8 @@ app.get('/api/guias/download/:id', async (req, res) => {
 
 // Inicialização do Servidor
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`Servidor rodando na porta ${PORT}`);
+    // Executa a criação das tabelas logo após o servidor subir
+    await criarTabelasAutomaticamente();
 });
