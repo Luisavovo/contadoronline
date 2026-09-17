@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Acesso do Contador - Painel Administrativo</title>
+    <title>Contador Online - Acesso ao Sistema</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -16,7 +16,7 @@
         
         <!-- Cabeçalho -->
         <div class="text-center mb-8">
-            <div class="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-blue-600/10 border border-blue-500/20 text-blue-400 mb-4 text-2xl font-bold">
+            <div id="icone-topo" class="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-blue-600/10 border border-blue-500/20 text-blue-400 mb-4 text-2xl font-bold">
                 💼
             </div>
             <h1 id="titulo-pagina" class="text-2xl font-bold tracking-tight text-white">Área do Contador</h1>
@@ -26,7 +26,7 @@
         <!-- Alerta de Erro / Sucesso -->
         <div id="mensagem-alerta" class="hidden mb-6 p-3 rounded-lg text-sm font-medium"></div>
 
-        <!-- Formulário de Login -->
+        <!-- Formulário de Login (Contador) -->
         <form id="form-login" class="space-y-4">
             <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">E-mail de Acesso</label>
@@ -39,11 +39,28 @@
             </div>
 
             <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 rounded-lg transition-colors shadow-lg shadow-blue-600/20">
-                Entrar no Painel
+                Entrar no Painel do Escritório
             </button>
         </form>
 
-        <!-- Formulário de Cadastro (Oculto Inicialmente) -->
+        <!-- Formulário de Login do Cliente (Empresa) -->
+        <form id="form-login-cliente" class="space-y-4 hidden">
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">CNPJ da Empresa</label>
+                <input type="text" id="cliente-cnpj" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-colors" placeholder="Digite apenas os números do CNPJ">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Senha de Acesso</label>
+                <input type="password" id="cliente-senha" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-colors" placeholder="••••••••">
+            </div>
+
+            <button type="submit" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-3 rounded-lg transition-colors shadow-lg shadow-purple-600/20">
+                Entrar na Área do Cliente
+            </button>
+        </form>
+
+        <!-- Formulário de Cadastro de Novo Escritório -->
         <form id="form-cadastro" class="space-y-4 hidden">
             <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Nome do Escritório / Contador</label>
@@ -65,63 +82,76 @@
             </button>
         </form>
 
-        <!-- Formulário de Recuperação de Senha (Somente E-mail) -->
-        <form id="form-recuperar" class="space-y-4 hidden">
-            <div>
-                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">E-mail Cadastrado</label>
-                <input type="email" id="rec-email" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-colors" placeholder="seu.email@escritorio.com">
-            </div>
-
-            <!-- Campo para Nova Senha aparece somente após digitar o e-mail ou integrado de forma limpa -->
-            <div id="bloco-nova-senha" class="hidden">
-                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Nova Senha</label>
-                <input type="password" id="rec-nova-senha" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-colors" placeholder="••••••••">
-            </div>
-
-            <button type="submit" id="btn-acao-recuperar" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-3 rounded-lg transition-colors shadow-lg shadow-amber-600/20">
-                Avançar / Redefinir
-            </button>
-        </form>
-
-        <!-- Alternadores -->
+        <!-- Alternadores de Telas -->
         <div class="mt-6 space-y-2 text-center">
+            <div>
+                <button id="btn-tipo-acesso" type="button" onclick="alternarParaCliente()" class="text-xs text-purple-400 hover:text-purple-300 font-medium transition-colors">
+                    É cliente? Acesse sua empresa com o CNPJ aqui
+                </button>
+            </div>
             <div>
                 <button id="btn-alternar" type="button" onclick="alternarModo('cadastro')" class="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors">
                     Não tem uma conta? Cadastre seu escritório aqui
                 </button>
             </div>
-            <div>
-                <button id="btn-esqueci" type="button" onclick="alternarModo('recuperar')" class="text-xs text-slate-400 hover:text-slate-300 transition-colors">
-                    Esqueceu sua senha? Clique aqui para redefinir
-                </button>
-            </div>
-        </div>
-
-        <div class="mt-8 pt-6 border-t border-slate-800 text-center">
-            <a href="index.html" class="text-xs text-slate-500 hover:text-slate-400 transition-colors">← Voltar para a Página Inicial</a>
         </div>
 
     </div>
 
     <script>
+        let modoCliente = false;
+
+        function alternarParaCliente() {
+            modoCliente = !modoCliente;
+            const formLogin = document.getElementById('form-login');
+            const formLoginCliente = document.getElementById('form-login-cliente');
+            const formCadastro = document.getElementById('form-cadastro');
+            const titulo = document.getElementById('titulo-pagina');
+            const subtitulo = document.getElementById('subtitulo-pagina');
+            const btnTipoAcesso = document.getElementById('btn-tipo-acesso');
+            const btnAlternar = document.getElementById('btn-alternar');
+            const icone = document.getElementById('icone-topo');
+            const alerta = document.getElementById('mensagem-alerta');
+
+            alerta.classList.add('hidden');
+            formCadastro.classList.add('hidden');
+
+            if (modoCliente) {
+                formLogin.classList.add('hidden');
+                formLoginCliente.classList.remove('hidden');
+                titulo.textContent = 'Área do Cliente';
+                subtitulo.textContent = 'Entre com o CNPJ e senha para ver suas guias';
+                btnTipoAcesso.textContent = '← Voltar para o Login do Contador';
+                btnAlternar.classList.add('hidden');
+                icone.textContent = '🏢';
+            } else {
+                formLoginCliente.classList.add('hidden');
+                formLogin.classList.remove('hidden');
+                titulo.textContent = 'Área do Contador';
+                subtitulo.textContent = 'Entre com sua conta para gerenciar seus clientes';
+                btnTipoAcesso.textContent = 'É cliente? Acesse sua empresa com o CNPJ aqui';
+                btnAlternar.classList.remove('hidden');
+                icone.textContent = '💼';
+            }
+        }
+
         function alternarModo(tipo) {
+            modoCliente = false;
+            document.getElementById('form-login-cliente').classList.add('hidden');
+            document.getElementById('form-login').classList.remove('hidden');
+            
             const formLogin = document.getElementById('form-login');
             const formCadastro = document.getElementById('form-cadastro');
-            const formRecuperar = document.getElementById('form-recuperar');
             const titulo = document.getElementById('titulo-pagina');
             const subtitulo = document.getElementById('subtitulo-pagina');
             const btnAlternar = document.getElementById('btn-alternar');
-            const btnEsqueci = document.getElementById('btn-esqueci');
             const alerta = document.getElementById('mensagem-alerta');
-            const blocoNovaSenha = document.getElementById('bloco-nova-senha');
-            const btnAcaoRecuperar = document.getElementById('btn-acao-recuperar');
+            const icone = document.getElementById('icone-topo');
 
             alerta.classList.add('hidden');
             formLogin.classList.add('hidden');
             formCadastro.classList.add('hidden');
-            formRecuperar.classList.add('hidden');
-            blocoNovaSenha.classList.add('hidden');
-            btnAcaoRecuperar.textContent = 'Redefinir Senha';
+            icone.textContent = '💼';
 
             if (tipo === 'cadastro') {
                 formCadastro.classList.remove('hidden');
@@ -129,21 +159,12 @@
                 subtitulo.textContent = 'Cadastre-se para gerenciar seus clientes';
                 btnAlternar.textContent = 'Já tem uma conta? Faça login aqui';
                 btnAlternar.setAttribute('onclick', "alternarModo('login')");
-                btnEsqueci.classList.remove('hidden');
-            } else if (tipo === 'recuperar') {
-                formRecuperar.classList.remove('hidden');
-                titulo.textContent = 'Recuperar Senha';
-                subtitulo.textContent = 'Informe seu e-mail cadastrado';
-                btnAlternar.textContent = 'Lembrou a senha? Faça login aqui';
-                btnAlternar.setAttribute('onclick', "alternarModo('login')");
-                btnEsqueci.classList.add('hidden');
             } else {
                 formLogin.classList.remove('hidden');
                 titulo.textContent = 'Área do Contador';
                 subtitulo.textContent = 'Entre com sua conta para gerenciar seus clientes';
                 btnAlternar.textContent = "Não tem uma conta? Cadastre seu escritório aqui";
                 btnAlternar.setAttribute('onclick', "alternarModo('cadastro')");
-                btnEsqueci.classList.remove('hidden');
             }
         }
 
@@ -159,7 +180,7 @@
             }
         }
 
-        // Login
+        // Login Contador
         document.getElementById('form-login').addEventListener('submit', async (e) => {
             e.preventDefault();
             const email = document.getElementById('login-email').value;
@@ -183,7 +204,31 @@
             }
         });
 
-        // Cadastro
+        // Login Cliente
+        document.getElementById('form-login-cliente').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const cnpj = document.getElementById('cliente-cnpj').value.replace(/\D/g, '');
+            const senha = document.getElementById('cliente-senha').value;
+
+            try {
+                const resposta = await fetch('/api/cliente/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cnpj, senha })
+                });
+
+                const dados = await resposta.json();
+                if (!resposta.ok) throw new Error(dados.erro || 'Erro ao fazer login como cliente.');
+
+                localStorage.setItem('tokenCliente', dados.token);
+                localStorage.setItem('cnpjCliente', cnpj);
+                window.location.href = 'dashboard.html';
+            } catch (erro) {
+                mostrarAlerta(erro.message, 'erro');
+            }
+        });
+
+        // Cadastro de Contador
         document.getElementById('form-cadastro').addEventListener('submit', async (e) => {
             e.preventDefault();
             const nomeEscritorio = document.getElementById('cad-nome').value;
@@ -202,49 +247,6 @@
 
                 mostrarAlerta(dados.mensagem, 'sucesso');
                 setTimeout(() => alternarModo('login'), 1500);
-            } catch (erro) {
-                mostrarAlerta(erro.message, 'erro');
-            }
-        });
-
-        // Recuperar Senha (Etapa única ou dupla)
-        document.getElementById('form-recuperar').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('rec-email').value;
-            const blocoNovaSenha = document.getElementById('bloco-nova-senha');
-            const btnAcao = document.getElementById('btn-acao-recuperar');
-
-            // Se o campo de nova senha estiver oculto, revela ele primeiro
-            if (blocoNovaSenha.classList.contains('hidden')) {
-                if (!email) {
-                    mostrarAlerta('Digite seu e-mail primeiro.', 'erro');
-                    return;
-                }
-                blocoNovaSenha.classList.remove('hidden');
-                btnAcao.textContent = 'Confirmar Nova Senha';
-                mostrarAlerta('Agora digite a sua nova senha.', 'sucesso');
-                return;
-            }
-
-            // Se já estiver visível, executa a alteração
-            const novaSenha = document.getElementById('rec-nova-senha').value;
-            if (!novaSenha) {
-                mostrarAlerta('Digite a nova senha.', 'erro');
-                return;
-            }
-
-            try {
-                const resposta = await fetch('/api/contador/esqueci-senha', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, novaSenha })
-                });
-
-                const dados = await resposta.json();
-                if (!resposta.ok) throw new Error(dados.erro || 'Erro ao redefinir senha.');
-
-                mostrarAlerta(dados.mensagem, 'sucesso');
-                setTimeout(() => alternarModo('login'), 2000);
             } catch (erro) {
                 mostrarAlerta(erro.message, 'erro');
             }
