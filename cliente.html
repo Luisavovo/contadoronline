@@ -77,9 +77,13 @@
                 const dados = await resposta.json();
                 if (!resposta.ok) throw new Error(dados.erro || 'Erro ao fazer login como cliente.');
 
-                localStorage.setItem('tokenCliente', dados.token);
-                localStorage.setItem('cnpjCliente', cnpj);
-                localStorage.setItem('primeiroAcesso', dados.primeiroAcesso);
+                // Salva no formato padronizado que o dashboard.html espera
+                localStorage.setItem('token', dados.token);
+                localStorage.setItem('empresa', JSON.stringify({
+                    cnpj: cnpj,
+                    razaoSocial: dados.razaoSocial || 'Minha Empresa',
+                    primeiroAcesso: dados.primeiroAcesso
+                }));
 
                 window.location.href = 'dashboard.html';
             } catch (erro) {
