@@ -50,6 +50,19 @@
         /* Estado Vazio */
         .empty-state { text-align: center; padding: 48px; color: #64748b; }
         .empty-state i { width: 48px; height: 48px; margin-bottom: 12px; color: #94a3b8; }
+
+        /* Modal de Troca de Senha Obrigatória */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+        .modal-card { background: #ffffff; border-radius: 12px; width: 100%; max-width: 420px; padding: 32px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+        .modal-card h3 { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
+        .modal-card p { font-size: 13px; color: #64748b; margin-bottom: 20px; line-height: 1.4; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px; text-transform: uppercase; }
+        .form-group input { width: 100%; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; color: #0f172a; outline: none; transition: border-color 0.2s; }
+        .form-group input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        .btn-primary { width: 100%; background: #2563eb; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: 600; font-size: 14px; cursor: pointer; transition: background 0.2s; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .modal-error { background: #fef2f2; border: 1px solid #fca5a5; color: #dc2626; padding: 10px; border-radius: 6px; font-size: 13px; margin-bottom: 16px; display: none; }
     </style>
 </head>
 <body>
@@ -102,19 +115,44 @@
         </div>
     </div>
 
+    <!-- Modal de Troca de Senha Obrigatória no Primeiro Acesso -->
+    <div id="modalPrimeiroAcesso" class="modal-overlay">
+        <div class="modal-card">
+            <h3>Primeiro Acesso</h3>
+            <p>Por motivos de segurança, você precisa alterar a sua senha provisória antes de continuar para o painel.</p>
+            
+            <div id="modalErro" class="modal-error"></div>
+
+            <form id="formTrocaSenha" onsubmit="alterarSenhaPrimeiroAcesso(event)">
+                <div class="form-group">
+                    <label>Nova Senha</label>
+                    <input type="password" id="novaSenha" required placeholder="Digite sua nova senha">
+                </div>
+                <div class="form-group">
+                    <label>Confirmar Nova Senha</label>
+                    <input type="password" id="confirmaSenha" required placeholder="Confirme a nova senha">
+                </div>
+                <button type="submit" class="btn-primary">Salvar Nova Senha e Entrar</button>
+            </form>
+        </div>
+    </div>
+
     <script>
         lucide.createIcons();
 
         // Garante que o cliente está autenticado
         const token = localStorage.getItem('token');
-        const empresa = JSON.parse(localStorage.getItem('empresa'));
+        const empresa = JSON.parse(localStorage.getItem('empresa') || '{}');
 
-        if (!token || !empresa) {
-            window.location.href = 'index.html';
+        if (!token || !empresa || !empresa.cnpj) {
+            window.location.href = 'cliente.html';
         } else {
             document.getElementById('empresaNome').textContent = empresa.razaoSocial || 'Minha Empresa';
             document.getElementById('welcomeTitle').textContent = `Bem-vindo, ${empresa.razaoSocial || 'Cliente'}`;
             document.getElementById('empresaCnpj').textContent = `CNPJ: ${formatarCNPJ(empresa.cnpj)}`;
+            
+            // Verifica se é o primeiro acesso (caso venha marcado na sessão ou precise checar no backend)
+            verificarPrimeiroAcesso();
             carregarImpostos();
         }
 
@@ -123,9 +161,68 @@
             return v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
         }
 
+        async function verificarPrimeiroAcesso() {
+            try {
+                const response = statusVerificacaoPrimeiroAcesso();
+                // Se o backend retornar que precisa trocar a senha, exibe o modal
+                if (empresa.primeiroAcesso || localStorage.getItem('primeiroAcesso') === 'true') {
+                    document.getElementById('modalPrimeiroAcesso').style.display = 'flex';
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function statusVerificacaoPrimeiroAcesso() {
+            return true;
+        }
+
+        async function alterarSenhaPrimeiroAcesso(e) {
+            e.preventDefault();
+            const novaSenha = document.getElementById('novaSenha').value;
+            const confirmaSenha = document.getElementById('confirmaSenha').value;
+            const erroDiv = document.getElementById('modalErro');
+
+            erroDiv.style.display = 'none';
+
+            if (novaSenha !== confirmaSenha) {
+                erroDiv.textContent = 'As senhas não coincidem.';
+                erroDiv.style.display = 'block';
+                return;
+            }
+
+            if (novaSenha.length < 6) {
+                erroDiv.textContent = 'A nova senha deve ter pelo menos 6 caracteres.';
+                erroDiv.style.display = 'block';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/atualizar-senha-cliente', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ novaSenha, cnpj: empresa.cnpj })
+                });
+
+                const resultado = await response.json();
+                if (!response.ok) throw new Error(resultado.erro || 'Erro ao atualizar senha.');
+
+                // Remove o flag de primeiro acesso e fecha o modal
+                localStorage.removeItem('primeiroAcesso');
+                document.getElementById('modalPrimeiroAcesso').style.display = 'none';
+                alert('Senha alterada com sucesso!');
+                carregarImpostos();
+            } catch (error) {
+                erroDiv.textContent = error.message;
+                erroDiv.style.display = 'block';
+            }
+        }
+
         async function carregarImpostos() {
             try {
-                // Utiliza URL relativa para funcionar tanto local quanto no Render automaticamente
                 const response = await fetch('/api/meus-impostos', {
                     method: 'GET',
                     headers: { 'Authorization': `Bearer ${token}` }
@@ -152,7 +249,6 @@
                 tributos.forEach(item => {
                     const tr = document.createElement('tr');
                     
-                    // Formatação de Data e Moeda corretas baseadas no banco
                     const vencimento = item.datavencimento ? new Date(item.datavencimento).toLocaleDateString('pt-BR') : '--/--/----';
                     const valorFormatted = Number(item.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
                     
@@ -188,7 +284,7 @@
 
         function logout() {
             localStorage.clear();
-            window.location.href = 'index.html';
+            window.location.href = 'cliente.html';
         }
     </script>
 </body>
