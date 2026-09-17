@@ -47,12 +47,12 @@
         <form id="form-login-cliente" class="space-y-4 hidden">
             <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">CNPJ da Empresa</label>
-                <input type="text" id="cliente-cnpj" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-colors" placeholder="Digite apenas os números do CNPJ">
+                <input type="text" id="cliente-cnpj" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 transition-colors" placeholder="Digite apenas os números">
             </div>
 
             <div>
-                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Senha de Acesso</label>
-                <input type="password" id="cliente-senha" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-colors" placeholder="••••••••">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Senha (Provisória ou Atual)</label>
+                <input type="password" id="cliente-senha" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 transition-colors" placeholder="••••••••">
             </div>
 
             <button type="submit" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-3 rounded-lg transition-colors shadow-lg shadow-purple-600/20">
@@ -222,6 +222,9 @@
 
                 localStorage.setItem('tokenCliente', dados.token);
                 localStorage.setItem('cnpjCliente', cnpj);
+                localStorage.setItem('primeiroAcesso', dados.primeiroAcesso);
+
+                // Se for primeiro acesso, redireciona ou avisa para trocar a senha
                 window.location.href = 'dashboard.html';
             } catch (erro) {
                 mostrarAlerta(erro.message, 'erro');
