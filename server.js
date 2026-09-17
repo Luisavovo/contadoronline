@@ -12,7 +12,7 @@ app.use(cors());
 // Serve os arquivos estáticos da pasta do projeto (HTML, CSS, JS do frontend)
 app.use(express.static(__dirname));
 
-// Configuração do Banco de Dados PostgreSQL (usando a URL nova)
+// Configuração do Banco de Dados PostgreSQL (usando a URL da Render)
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://coontadoronnline_user:7rpGNrhb0DGachE29ibe9q5mNESBQnh4@dpg-daljnhm5vjqs73fl8ep0-a/coontadoronnline',
     ssl: { rejectUnauthorized: false }
@@ -20,7 +20,7 @@ const pool = new Pool({
 
 const JWT_SECRET = process.env.JWT_SECRET || 'sua_chave_secreta_super_segura';
 
-// Função para criar as tabelas automaticamente caso elas não existam no banco novo
+// Função para criar as tabelas automaticamente caso elas não existam no banco
 async function criarTabelasAutomaticamente() {
     try {
         await pool.query(`
@@ -42,6 +42,7 @@ async function criarTabelasAutomaticamente() {
                 senhahash VARCHAR(255),
                 contador_id INTEGER,
                 contadorid INTEGER,
+                primeiro_acesso BOOLEAN DEFAULT TRUE,
                 datacriacao TIMESTAMP DEFAULT NOW()
             );
 
@@ -65,7 +66,7 @@ async function criarTabelasAutomaticamente() {
     }
 }
 
-// Configuração do Multer para salvar arquivos PDF direto na memória (para o tipo bytea do Postgres)
+// Configuração do Multer para salvar arquivos PDF direto na memória
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Middleware de Autenticação do Contador
@@ -148,8 +149,64 @@ app.post('/api/contador/login', async (req, res) => {
 });
 
 // ==========================================
-// 2. ROTAS DE EMPRESAS (Clientes)
+// 2. ROTAS DE EMPRESAS (Clientes) E LOGIN DO CLIENTE
 // ==========================================
+
+app.post('/api/cliente/login', async (req, res) => {
+    try {
+        let { cnpj, senha } = req.body;
+        if (!cnpj || !senha) {
+            return res.status(400).json({ erro: 'Preencha o CNPJ e a senha.' });
+        }
+
+        const cnpjLimpo = cnpj.replace(/\D/g, '');
+        const resultado = await pool.query('SELECT * FROM empresas WHERE cnpj = $1', [cnpjLimpo]);
+        if (resultado.rows.length === 0) {
+            return res.status(400).json({ erro: 'CNPJ ou senha incorretos.' });
+        }
+
+        const empresa = resultado.rows[0];
+        const senhaArmazenada = empresa.senhahash || empresa.senha;
+        const senhaValida = await bcrypt.compare(senha, senhaArmazenada);
+        
+        if (!senhaValida) {
+            return res.status(400).json({ erro: 'CNPJ ou senha incorretos.' });
+        }
+
+        const token = jwt.sign({ id: empresa.id, cnpj: empresa.cnpj }, JWT_SECRET, { expiresIn: '7d' });
+
+        res.json({
+            mensagem: 'Login realizado com sucesso!',
+            token,
+            razaoSocial: empresa.razaosocial,
+            primeiroAcesso: empresa.primeiro_acesso
+        });
+    } catch (erro) {
+        res.status(500).json({ erro: 'Erro no servidor: ' + erro.message });
+    }
+});
+
+app.post('/api/cliente/alterar-senha', async (req, res) => {
+    try {
+        let { cnpj, novaSenha } = req.body;
+        if (!cnpj || !novaSenha) {
+            return res.status(400).json({ erro: 'CNPJ e nova senha são obrigatórios.' });
+        }
+
+        const cnpjLimpo = cnpj.replace(/\D/g, '');
+        const salt = await bcrypt.genSalt(10);
+        const senhaHash = await bcrypt.hash(novaSenha, salt);
+
+        await pool.query(
+            'UPDATE empresas SET senhahash = $1, senha = $1, primeiro_acesso = FALSE WHERE cnpj = $2',
+            [senhaHash, cnpjLimpo]
+        );
+
+        res.json({ mensagem: 'Senha alterada com sucesso! Faça login novamente.' });
+    } catch (erro) {
+        res.status(500).json({ erro: 'Erro ao alterar senha: ' + erro.message });
+    }
+});
 
 app.get('/api/empresas', verificarTokenContador, async (req, res) => {
     try {
@@ -186,16 +243,16 @@ app.post('/api/cadastrar-empresa', async (req, res) => {
                 const token = authHeader.split(' ')[1];
                 const decoded = jwt.verify(token, JWT_SECRET);
                 contadorId = decoded.id;
-            } catch (e) { /* Token opcional para cadastro público */ }
+            } catch (e) { /* Token opcional */ }
         }
 
         await pool.query(
-            `INSERT INTO empresas (cnpj, razaosocial, emailempresa, senha, senhahash, contador_id, contadorid, datacriacao) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+            `INSERT INTO empresas (cnpj, razaosocial, emailempresa, senha, senhahash, contador_id, contadorid, primeiro_acesso, datacriacao) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, NOW())`,
             [cnpjLimpo, razaoSocial, emailEmpresa || '', senhaHash, senhaHash, contadorId, contadorId]
         );
 
-        res.status(201).json({ mensagem: 'Empresa cadastrada com sucesso!' });
+        res.status(201).json({ mensagem: 'Empresa cadastrada com senha provisória com sucesso!' });
     } catch (erro) {
         res.status(500).json({ erro: 'Erro ao cadastrar empresa: ' + erro.message });
     }
@@ -278,6 +335,5 @@ app.get('/api/guias/download/:id', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
     console.log(`Servidor rodando na porta ${PORT}`);
-    // Executa a criação das tabelas logo após o servidor subir
     await criarTabelasAutomaticamente();
 });
