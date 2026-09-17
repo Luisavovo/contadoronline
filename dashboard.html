@@ -110,7 +110,7 @@
 
             <div id="emptyState" class="empty-state" style="display: none;">
                 <i data-lucide="inbox"></i>
-                <p>Nenhuma guia de imposto pendente no momento.</p>
+                <p>Nenhuma guia de imposto encontrada no momento.</p>
             </div>
         </div>
     </div>
@@ -140,7 +140,6 @@
     <script>
         lucide.createIcons();
 
-        // Garante que o cliente está autenticado
         const token = localStorage.getItem('token');
         const empresa = JSON.parse(localStorage.getItem('empresa') || '{}');
 
@@ -151,30 +150,17 @@
             document.getElementById('welcomeTitle').textContent = `Bem-vindo, ${empresa.razaoSocial || 'Cliente'}`;
             document.getElementById('empresaCnpj').textContent = `CNPJ: ${formatarCNPJ(empresa.cnpj)}`;
             
-            // Verifica se é o primeiro acesso (caso venha marcado na sessão ou precise checar no backend)
-            verificarPrimeiroAcesso();
+            // Verifica se é o primeiro acesso
+            if (empresa.primeiroAcesso === true || empresa.primeiroAcesso === 'true') {
+                document.getElementById('modalPrimeiroAcesso').style.display = 'flex';
+            }
+
             carregarImpostos();
         }
 
         function formatarCNPJ(v) {
             if (!v) return '';
             return v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
-        }
-
-        async function verificarPrimeiroAcesso() {
-            try {
-                const response = statusVerificacaoPrimeiroAcesso();
-                // Se o backend retornar que precisa trocar a senha, exibe o modal
-                if (empresa.primeiroAcesso || localStorage.getItem('primeiroAcesso') === 'true') {
-                    document.getElementById('modalPrimeiroAcesso').style.display = 'flex';
-                }
-            } catch (e) {
-                console.error(e);
-            }
-        }
-
-        function statusVerificacaoPrimeiroAcesso() {
-            return true;
         }
 
         async function alterarSenhaPrimeiroAcesso(e) {
@@ -198,23 +184,22 @@
             }
 
             try {
-                const response = await fetch('/api/atualizar-senha-cliente', {
+                const response = await fetch('/api/cliente/alterar-senha', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ novaSenha, cnpj: empresa.cnpj })
                 });
 
                 const resultado = await response.json();
                 if (!response.ok) throw new Error(resultado.erro || 'Erro ao atualizar senha.');
 
-                // Remove o flag de primeiro acesso e fecha o modal
-                localStorage.removeItem('primeiroAcesso');
+                // Atualiza o objeto no localStorage para remover o primeiro acesso
+                empresa.primeiroAcesso = false;
+                localStorage.setItem('empresa', JSON.stringify(empresa));
+
                 document.getElementById('modalPrimeiroAcesso').style.display = 'none';
-                alert('Senha alterada com sucesso!');
-                carregarImpostos();
+                alert('Senha alterada com sucesso! Faça login novamente para prosseguir.');
+                logout();
             } catch (error) {
                 erroDiv.textContent = error.message;
                 erroDiv.style.display = 'block';
@@ -223,9 +208,8 @@
 
         async function carregarImpostos() {
             try {
-                const response = await fetch('/api/meus-impostos', {
-                    method: 'GET',
-                    headers: { 'Authorization': `Bearer ${token}` }
+                const response = await fetch(`/api/guias/${empresa.cnpj}`, {
+                    method: 'GET'
                 });
 
                 if (response.status === 401 || response.status === 403) {
@@ -249,19 +233,19 @@
                 tributos.forEach(item => {
                     const tr = document.createElement('tr');
                     
-                    const vencimento = item.datavencimento ? new Date(item.datavencimento).toLocaleDateString('pt-BR') : '--/--/----';
+                    const vencimento = item.vencimento ? new Date(item.vencimento).toLocaleDateString('pt-BR') : '--/--/----';
                     const valorFormatted = Number(item.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
                     
                     tr.innerHTML = `
                         <td><strong>${item.tipoimposto || 'Imposto'}</strong></td>
-                        <td>${item.mesreferencia || '--'}</td>
+                        <td>${item.competencia || '--'}</td>
                         <td>${vencimento}</td>
                         <td><strong>${valorFormatted}</strong></td>
-                        <td><span class="badge badge-pendente">${item.statuspagamento || 'PENDENTE'}</span></td>
+                        <td><span class="badge badge-pendente">PENDENTE</span></td>
                         <td>
                             <div class="action-buttons">
-                                ${item.codigopix ? `<button class="btn-action btn-pix" onclick="copiarPix('${item.codigopix}')"><i data-lucide="qr-code" style="width:14px;"></i> Copiar PIX</button>` : ''}
-                                ${item.caminhopdf ? `<a href="/${item.caminhopdf}" target="_blank" class="btn-action btn-pdf"><i data-lucide="download" style="width:14px;"></i> PDF</a>` : ''}
+                                ${item.pix ? `<button class="btn-action btn-pix" onclick="copiarPix('${item.pix}')"><i data-lucide="qr-code" style="width:14px;"></i> Copiar PIX</button>` : ''}
+                                ${item.arquivonome ? `<a href="/api/guias/download/${item.id}" target="_blank" class="btn-action btn-pdf"><i data-lucide="download" style="width:14px;"></i> PDF</a>` : ''}
                             </div>
                         </td>
                     `;
