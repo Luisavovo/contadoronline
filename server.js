@@ -14,7 +14,7 @@ app.use(express.static(__dirname));
 
 // Configuração do Banco de Dados PostgreSQL (usando a URL da Render)
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgresql://banco_contador_user:2TcnzLxJl2eUkA4IK5uMFDb4UVVMlXWC@dpg-dal9lkqjnfac73cundjg-a.virginia-postgres.render.com/banco_contador',
+    connectionString: process.env.DATABASE_URL || 'postgresql://coontadoronnline_user:7rpGNrhb0DGachE29ibe9q5mNESBQnh4@dpg-daljnhm5vjqs73fl8ep0-a/coontadoronnline',
     ssl: { rejectUnauthorized: false }
 });
 
