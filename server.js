@@ -20,7 +20,7 @@ const pool = new Pool({
 
 const JWT_SECRET = process.env.JWT_SECRET || 'sua_chave_secreta_super_segura';
 
-// Função para criar as tabelas automaticamente caso elas não existam no banco
+// Função para criar as tabelas e colunas automaticamente caso elas não existam no banco
 async function criarTabelasAutomaticamente() {
     try {
         await pool.query(`
@@ -42,7 +42,6 @@ async function criarTabelasAutomaticamente() {
                 senhahash VARCHAR(255),
                 contador_id INTEGER,
                 contadorid INTEGER,
-                primeiro_acesso BOOLEAN DEFAULT TRUE,
                 datacriacao TIMESTAMP DEFAULT NOW()
             );
 
@@ -60,7 +59,11 @@ async function criarTabelasAutomaticamente() {
                 datacriacao TIMESTAMP DEFAULT NOW()
             );
         `);
-        console.log("✅ Tabelas verificadas/criadas com sucesso no banco de dados!");
+
+        // Garante que a coluna de primeiro acesso existe mesmo em tabelas antigas
+        await pool.query(`ALTER TABLE empresas ADD COLUMN IF NOT EXISTS primeiro_acesso BOOLEAN DEFAULT TRUE;`);
+
+        console.log("✅ Tabelas e colunas verificadas/criadas com sucesso no banco de dados!");
     } catch (err) {
         console.error("❌ Erro ao criar tabelas automaticamente:", err.message);
     }
